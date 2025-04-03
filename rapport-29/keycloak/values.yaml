@@ -1,0 +1,74 @@
+global:
+  postgresql:
+    auth:
+      existingSecret: keycloak-db-secret  
+
+auth:
+  existingSecret: keycloak-admin-secret
+
+postgresql:
+  enabled: true
+  primary:
+    persistence:
+      enabled: true
+      storageClass: "microk8s-hostpath"
+      size: 8Gi
+      accessModes:
+        - ReadWriteOnce
+  auth:
+    existingSecret: keycloak-db-secret  
+
+readinessProbe:
+  httpGet:
+    path: /realms/master
+    port: http
+  initialDelaySeconds: 60
+  timeoutSeconds: 5
+
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "500m"
+  limits:
+    memory: "1Gi"
+    cpu: "1"
+
+extraEnvVars:
+  - name: KC_PRODUCTION
+    value: "false"
+  - name: KC_HOSTNAME_STRICT
+    value: "false"
+  - name: KC_HTTP_ENABLED
+    value: "true"
+  - name: KC_DB
+    value: "postgres"
+  - name: KC_DB_URL_HOST
+    value: "keycloak-postgresql-primary"  
+  - name: KC_DB_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-db-secret
+        key: username
+  - name: KC_DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-db-secret
+        key: password
+  - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-admin-secret
+        key: admin-password
+  - name: KC_BOOTSTRAP_ADMIN_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-admin-secret
+        key: admin-user
+  - name: VERTX_WORKER_POOL_SIZE
+    value: "20"
+  - name: VERTX_EVENT_LOOP_POOL_SIZE
+    value: "8"
+  - name: KC_METRICS_ENABLED  
+    value: "true"
+  - name: KC_LOG_LEVEL
+    value: "INFO"

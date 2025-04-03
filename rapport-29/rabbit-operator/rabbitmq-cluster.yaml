@@ -1,0 +1,34 @@
+apiVersion: rabbitmq.com/v1beta1
+kind: RabbitmqCluster
+metadata:
+  name: rabbitmq
+  namespace: rabbit
+spec:
+  replicas: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 2Gi
+  service:
+    type: ClusterIP
+  persistence:
+    storageClassName: microk8s-hostpath
+    storage: 5Gi
+  rabbitmq:
+    additionalPlugins:
+      - rabbitmq_management
+      - rabbitmq_peer_discovery_k8s
+    additionalConfig: |
+      cluster_formation.peer_discovery_backend = rabbit_peer_discovery_k8s
+      cluster_formation.k8s.host = kubernetes.default.svc.cluster.local
+      cluster_formation.k8s.port = 443
+      cluster_formation.k8s.address_type = hostname
+      cluster_formation.k8s.service_name = rabbitmq-nodes
+      cluster_formation.node_cleanup.interval = 10
+      default_user= deniz 
+      default_pass = turkmen
+      default_user_tags.administrator = true
+      log.console.level = debug
