@@ -1,0 +1,125 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbit-svc
+  namespace: rabbit
+spec:
+  clusterIP: None
+  ports:
+  - name: discovery
+    port: 4369
+    protocol: TCP
+    targetPort: 4369
+  - name: amqp
+    port: 5672
+    protocol: TCP
+    targetPort: 5672
+  - name: management
+    port: 15672
+    protocol: TCP
+    targetPort: 15672
+  - name: clustering  
+    port: 25672
+    targetPort: 25672
+  selector:
+    app: rabbitmq
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: rabbit
+spec:
+  serviceName: rabbit-svc
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rabbitmq
+
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      serviceAccountName: rabbitmq
+      initContainers:
+      - name: config-copy
+        image: busybox:1.28
+        command: ["/bin/sh", "-c", "cp /tmp/config/rabbitmq.conf /config/rabbitmq.conf && ls -l /config/ && cp /tmp/config/enabled_plugins /etc/rabbitmq/enabled_plugins"]
+        volumeMounts:
+        - name: config
+          mountPath: /tmp/config
+        - name: config-file
+          mountPath: /config
+        - name: plugins-file
+          mountPath: /etc/rabbitmq
+      volumes:
+      - name: config
+        configMap:
+          name: rabbitmq-config
+          defaultMode: 0755
+      - name: plugins-file
+        emptyDir: {}
+      - name: config-file
+        emptyDir: {}
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+        runAsGroup: 999
+
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:4.0-management 
+        volumeMounts:
+        - name: plugins-file
+          mountPath: "/etc/rabbitmq"
+        - name: rabbitmq-data
+          mountPath: "/var/lib/rabbitmq"
+          readOnly: false
+        - name: config-file
+          mountPath: /config/
+
+        env:
+        - name: RABBIT_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: RABBIT_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: RABBITMQ_NODENAME
+          value: rabbit@$(RABBIT_POD_NAME).rabbit-svc.$(RABBIT_POD_NAMESPACE).svc.cluster.local
+        - name: RABBITMQ_USE_LONGNAME
+          value: "true"
+        - name: RABBITMQ_CONFIG_FILE
+          value: "/config/rabbitmq"
+        - name: RABBITMQ_ERLANG_COOKIE
+          valueFrom:
+            secretKeyRef:
+              name: rabbit-secret
+              key: .erlang.cookie
+        - name: K8S_HOSTNAME_SUFFIX
+          value: .rabbit-svc.$(RABBIT_POD_NAMESPACE).svc.cluster.local
+
+        ports:
+        - containerPort: 4369
+          name: epmd
+        - containerPort: 5672
+          name: amqp
+        - containerPort: 15672
+          name: http
+        - containerPort: 25672
+          name: cluster
+
+  volumeClaimTemplates:
+  - metadata:
+      name: rabbitmq-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "microk8s-hostpath"
+      resources:
+        requests:
+          storage: 5Gi

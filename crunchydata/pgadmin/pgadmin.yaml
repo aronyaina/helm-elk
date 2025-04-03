@@ -1,0 +1,24 @@
+apiVersion: postgres-operator.crunchydata.com/v1beta1
+kind: PGAdmin
+metadata:
+  name: rhino
+spec:
+  users:
+    - username: rhino@example.com
+      role: Administrator
+      passwordRef:
+        name: pgadmin-password-secret
+        key: rhino-password
+  dataVolumeClaimSpec:
+    accessModes:
+    - "ReadWriteOnce"
+    resources:
+      requests:
+        storage: 1Gi
+    storageClassName: microk8s-hostpath
+  serverGroups:
+    - name: supply
+      postgresClusterSelector: {}
+  config:
+    settings:
+      AUTHENTICATION_SOURCES: ['internal']
